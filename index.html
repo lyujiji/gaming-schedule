@@ -177,10 +177,13 @@
       if (!supabaseClient) return;
       try {
         const { data, error } = await supabaseClient.from('schedule').select('*');
-        if (error) console.error('Fetch error:', error);
+        if (error) {
+          console.error('Fetch error:', error);
+          return;
+        }
         if (data) {
           data.forEach(row => {
-            scheduleData[row.id] = { francis: row.francis, lyuji: row.lyuji };
+            scheduleData[row.id] = { francis: Boolean(row.francis), lyuji: Boolean(row.lyuji) };
           });
           renderGrid();
         }
@@ -194,17 +197,21 @@
       const userKey = currentUser.toLowerCase();
       const updatedValue = !current[userKey];
 
+      // Optimistic local update
       scheduleData[slotKey] = { ...current, [userKey]: updatedValue };
       renderGrid();
 
       if (supabaseClient) {
         const payload = { 
           id: slotKey, 
-          francis: scheduleData[slotKey].francis || false, 
-          lyuji: scheduleData[slotKey].lyuji || false 
+          francis: Boolean(scheduleData[slotKey].francis), 
+          lyuji: Boolean(scheduleData[slotKey].lyuji)
         };
-        const { error } = await supabaseClient.from('schedule').upsert(payload);
-        if (error) console.error("Error saving slot:", error);
+        
+        const { error } = await supabaseClient.from('schedule').upsert(payload, { onConflict: 'id' });
+        if (error) {
+          console.error("Error saving slot to Supabase:", error);
+        }
       }
     }
 
@@ -219,8 +226,8 @@
           if (supabaseClient) {
             updates.push({
               id: slotKey,
-              francis: scheduleData[slotKey].francis || false,
-              lyuji: scheduleData[slotKey].lyuji || false
+              francis: Boolean(scheduleData[slotKey].francis),
+              lyuji: Boolean(scheduleData[slotKey].lyuji)
             });
           }
         }
@@ -229,7 +236,7 @@
       renderGrid();
 
       if (supabaseClient && updates.length > 0) {
-        const { error } = await supabaseClient.from('schedule').upsert(updates);
+        const { error } = await supabaseClient.from('schedule').upsert(updates, { onConflict: 'id' });
         if (error) console.error("Error clearing schedule:", error);
       }
     }
@@ -241,7 +248,10 @@
           .channel('schedule_changes')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule' }, payload => {
             if (payload.new) {
-              scheduleData[payload.new.id] = { francis: payload.new.francis, lyuji: payload.new.lyuji };
+              scheduleData[payload.new.id] = { 
+                francis: Boolean(payload.new.francis), 
+                lyuji: Boolean(payload.new.lyuji) 
+              };
               renderGrid();
             }
           })
@@ -251,7 +261,7 @@
       }
     }
 
-    // Initial render
+    // Initial render & sync
     updateUserUI();
     renderGrid();
     loadSchedule();
