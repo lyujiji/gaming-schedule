@@ -105,6 +105,13 @@
     let currentUser = localStorage.getItem('schedule_user') || 'Lyuji';
     let scheduleData = {};
 
+    // Initialize scheduleData structure
+    days.forEach(day => {
+      hours.forEach(hour => {
+        scheduleData[`${day}_${hour}`] = { francis: false, lyuji: false };
+      });
+    });
+
     function formatHour(h) {
       if (h === 12) return '12:00 PM';
       if (h > 12) return `${h - 12}:00 PM`;
@@ -247,7 +254,10 @@
         supabaseClient
           .channel('schedule_changes')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule' }, payload => {
-            if (payload.new) {
+            if (payload.eventType === 'DELETE' && payload.old) {
+              scheduleData[payload.old.id] = { francis: false, lyuji: false };
+              renderGrid();
+            } else if (payload.new) {
               scheduleData[payload.new.id] = { 
                 francis: Boolean(payload.new.francis), 
                 lyuji: Boolean(payload.new.lyuji) 
