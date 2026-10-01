@@ -3,164 +3,116 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Co-Op Gaming Schedule Matcher</title>
+  <title>Co-Op Gaming Schedule</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    body { 
-      background-color: #0f172a; 
-      color: #f8fafc; 
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; 
-    }
-
-    /* Francis States */
-    .cell-francis-free { background-color: rgba(6, 182, 212, 0.35); border: 1.5px solid #06b6d4; color: #67e8f9; }
-    .cell-francis-busy { background-color: rgba(30, 58, 138, 0.45); border: 1.5px dashed #3b82f6; color: #93c5fd; }
-
-    /* Lyuji States */
-    .cell-lyuji-free { background-color: rgba(168, 85, 247, 0.35); border: 1.5px solid #a855f7; color: #e9d5ff; }
-    .cell-lyuji-busy { background-color: rgba(136, 19, 55, 0.45); border: 1.5px dashed #f43f5e; color: #fca5a5; }
-
-    /* Perfect Match State */
-    .cell-match { 
-      background-color: rgba(16, 185, 129, 0.45); 
-      border: 2px solid #10b981; 
-      color: #6ee7b7; 
-      font-weight: 700; 
-      box-shadow: 0 0 12px rgba(16, 185, 129, 0.35); 
-    }
-
-    /* Both Busy / Off Time */
-    .cell-both-busy {
-      background-color: rgba(51, 65, 85, 0.5);
-      border: 1.5px dashed #64748b;
-      color: #94a3b8;
-    }
-
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar { height: 8px; width: 8px; }
-    ::-webkit-scrollbar-track { background: #0f172a; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
+    
+    /* Slot Status Styles */
+    .slot-none { background-color: rgba(30, 41, 59, 0.4); border: 1px solid rgba(51, 65, 85, 0.4); color: #64748b; }
+    
+    /* Individual Free States */
+    .slot-francis-free { background-color: rgba(6, 182, 212, 0.35); border: 1px solid #06b6d4; color: #67e8f9; }
+    .slot-lyuji-free { background-color: rgba(168, 85, 247, 0.35); border: 1px solid #a855f7; color: #e9d5ff; }
+    
+    /* Individual Busy/Sleep/Work States */
+    .slot-francis-busy { background-color: rgba(239, 68, 68, 0.25); border: 1px dashed #f87171; color: #fca5a5; }
+    .slot-lyuji-busy { background-color: rgba(245, 158, 11, 0.25); border: 1px dashed #fbbf24; color: #fde68a; }
+    
+    /* Both Free (Match) */
+    .slot-match { background-color: rgba(16, 185, 129, 0.45); border: 2px solid #10b981; color: #6ee7b7; font-weight: bold; box-shadow: inset 0 0 12px rgba(16, 185, 129, 0.4); }
   </style>
 </head>
 <body class="p-4 md:p-8 min-h-screen">
   <div class="max-w-7xl mx-auto space-y-6">
     
-    <!-- Top Bar Header -->
-    <header class="flex flex-col lg:flex-row justify-between items-center bg-slate-800/80 p-6 rounded-2xl border border-slate-700/80 shadow-2xl gap-5">
+    <!-- Header -->
+    <header class="flex flex-col lg:flex-row justify-between items-center bg-slate-800/80 p-6 rounded-2xl border border-slate-700 shadow-xl gap-4">
       <div>
-        <h1 class="text-3xl md:text-4xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-emerald-400 to-purple-400">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-emerald-400 to-purple-400">
           🎮 Co-Op Schedule Matcher
         </h1>
-        <p class="text-slate-400 text-sm md:text-base mt-1">Sync free time, work & sleep hours across custom weeks</p>
+        <p class="text-slate-400 text-sm md:text-base mt-1">Real-time weekly availability & busy state sync via Supabase</p>
       </div>
-
-      <!-- Controls & User Switcher -->
-      <div class="flex flex-wrap items-center justify-center lg:justify-end gap-3 w-full lg:w-auto">
-        
-        <!-- Clear My Schedule Button -->
-        <button onclick="clearMySchedule()" class="px-4 py-2.5 rounded-xl border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 font-bold text-sm transition flex items-center gap-2 shadow-sm">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-          Clear My Week
-        </button>
+      
+      <!-- Controls & Week Selector -->
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- Week Selector -->
+        <div class="flex items-center gap-2 bg-slate-900/90 p-2 rounded-xl border border-slate-700">
+          <label for="week-picker" class="text-xs uppercase font-bold tracking-wider text-slate-400 px-1">Week:</label>
+          <input type="week" id="week-picker" onchange="changeWeek(this.value)" class="bg-slate-800 text-slate-200 border border-slate-600 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-cyan-400" />
+        </div>
 
         <!-- User Switcher -->
-        <div class="flex items-center gap-2 bg-slate-900/90 p-2 rounded-xl border border-slate-700 shadow-inner">
-          <span class="text-xs uppercase font-extrabold tracking-wider text-slate-400 px-2">PLAYER:</span>
-          <button id="btn-francis" onclick="setUser('Francis')" class="px-4 py-2 rounded-lg font-bold transition text-sm">Francis</button>
-          <button id="btn-lyuji" onclick="setUser('Lyuji')" class="px-4 py-2 rounded-lg font-bold transition text-sm">Lyuji</button>
+        <div class="flex items-center gap-1.5 bg-slate-900/90 p-1.5 rounded-xl border border-slate-700">
+          <span class="text-xs uppercase font-bold tracking-wider text-slate-400 px-1">AS:</span>
+          <button id="btn-francis" onclick="setUser('Francis')" class="px-3 py-1.5 rounded-lg font-semibold transition text-sm">Francis</button>
+          <button id="btn-lyuji" onclick="setUser('Lyuji')" class="px-3 py-1.5 rounded-lg font-semibold transition text-sm">Lyuji</button>
         </div>
+
+        <!-- Clear Schedule -->
+        <button onclick="clearMySchedule()" class="px-3 py-2 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 font-semibold text-xs md:text-sm transition flex items-center gap-1.5">
+          Clear Week
+        </button>
       </div>
     </header>
 
-    <!-- Week Navigation Bar -->
-    <div class="bg-slate-800/60 p-4 rounded-2xl border border-slate-700/70 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
-      <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
-        <button onclick="changeWeek(-1)" class="p-2.5 rounded-xl bg-slate-700/70 hover:bg-slate-600 text-slate-200 transition">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
-        </button>
-        
-        <div class="flex items-center gap-2">
-          <label for="week-picker" class="text-sm font-bold text-slate-400 uppercase tracking-wider">Select Week:</label>
-          <input type="week" id="week-picker" onchange="onWeekPickerChange(this.value)" class="bg-slate-900 border border-slate-700 text-slate-100 text-sm md:text-base font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none cursor-pointer" />
-        </div>
-
-        <button onclick="changeWeek(1)" class="p-2.5 rounded-xl bg-slate-700/70 hover:bg-slate-600 text-slate-200 transition">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
-        </button>
-      </div>
-
-      <!-- Quick Action Mode Selector for clicking cells -->
-      <div class="flex items-center gap-2 bg-slate-900/80 p-1.5 rounded-xl border border-slate-700/80 w-full md:w-auto justify-center">
-        <span class="text-xs font-bold text-slate-400 px-2 uppercase">Clicking Sets:</span>
-        <button id="mode-free" onclick="setPaintMode('free')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-500 text-slate-950">🎮 Free</button>
-        <button id="mode-busy" onclick="setPaintMode('busy')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition bg-slate-800 text-slate-400 hover:text-white">💤 Work/Sleep</button>
-        <button id="mode-none" onclick="setPaintMode('none')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition bg-slate-800 text-slate-400 hover:text-white">❌ Off</button>
-      </div>
-    </div>
-
-    <!-- Legend Box -->
+    <!-- Legend -->
     <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
-      <div class="bg-slate-800/40 p-3.5 rounded-xl border border-cyan-500/30 flex items-center gap-3">
-        <div class="w-4 h-4 rounded bg-cyan-500 shrink-0"></div>
+      <div class="bg-slate-800/50 p-3 rounded-xl border border-cyan-500/30 flex items-center gap-2.5">
+        <div class="w-4 h-4 rounded bg-cyan-500"></div>
         <div>
-          <div class="font-bold text-cyan-400 text-sm">Francis Free</div>
-          <div class="text-xs text-slate-400">Ready to game</div>
+          <div class="font-bold text-cyan-400 text-xs md:text-sm">Francis Free</div>
+          <div class="text-[10px] text-slate-400">Available</div>
         </div>
       </div>
-      
-      <div class="bg-slate-800/40 p-3.5 rounded-xl border border-purple-500/30 flex items-center gap-3">
-        <div class="w-4 h-4 rounded bg-purple-500 shrink-0"></div>
+      <div class="bg-slate-800/50 p-3 rounded-xl border border-purple-500/30 flex items-center gap-2.5">
+        <div class="w-4 h-4 rounded bg-purple-500"></div>
         <div>
-          <div class="font-bold text-purple-400 text-sm">Lyuji Free</div>
-          <div class="text-xs text-slate-400">Ready to game</div>
+          <div class="font-bold text-purple-400 text-xs md:text-sm">Lyuji Free</div>
+          <div class="text-[10px] text-slate-400">Available</div>
         </div>
       </div>
-
-      <div class="bg-slate-800/40 p-3.5 rounded-xl border border-emerald-500/40 flex items-center gap-3 col-span-2 md:col-span-1">
-        <div class="w-4 h-4 rounded bg-emerald-500 animate-pulse shrink-0"></div>
+      <div class="bg-slate-800/50 p-3 rounded-xl border border-red-500/30 flex items-center gap-2.5">
+        <div class="w-4 h-4 rounded bg-red-500/40 border border-red-400 border-dashed"></div>
         <div>
-          <div class="font-bold text-emerald-400 text-sm">MATCH!</div>
-          <div class="text-xs text-slate-400">Both Free to play</div>
+          <div class="font-bold text-red-300 text-xs md:text-sm">Busy / Sleep</div>
+          <div class="text-[10px] text-slate-400">Unavailable</div>
         </div>
       </div>
-
-      <div class="bg-slate-800/40 p-3.5 rounded-xl border border-blue-500/30 flex items-center gap-3">
-        <div class="w-4 h-4 rounded bg-blue-600 border border-dashed border-blue-400 shrink-0"></div>
+      <div class="bg-slate-800/50 p-3 rounded-xl border border-emerald-500/30 flex items-center gap-2.5 col-span-2 md:col-span-2">
+        <div class="w-4 h-4 rounded bg-emerald-500 animate-pulse"></div>
         <div>
-          <div class="font-bold text-blue-300 text-sm">Francis Busy</div>
-          <div class="text-xs text-slate-400">Work / Sleep</div>
-        </div>
-      </div>
-
-      <div class="bg-slate-800/40 p-3.5 rounded-xl border border-rose-500/30 flex items-center gap-3">
-        <div class="w-4 h-4 rounded bg-rose-600 border border-dashed border-rose-400 shrink-0"></div>
-        <div>
-          <div class="font-bold text-rose-300 text-sm">Lyuji Busy</div>
-          <div class="text-xs text-slate-400">Work / Sleep</div>
+          <div class="font-bold text-emerald-400 text-xs md:text-sm">⚔ MATCH! Both Free</div>
+          <div class="text-[10px] text-slate-400">Co-Op Gaming Time</div>
         </div>
       </div>
     </div>
 
-    <!-- Schedule Grid Table -->
+    <!-- Instruction Tip -->
+    <div class="text-xs text-slate-400 text-center bg-slate-900/40 py-2 rounded-lg border border-slate-800">
+      💡 <span class="font-semibold text-slate-300">Click a slot to cycle:</span> <span class="text-slate-500">Off</span> $\rightarrow$ <span class="text-emerald-400 font-semibold">Free</span> $\rightarrow$ <span class="text-red-400 font-semibold">Busy/Sleep</span> $\rightarrow$ <span class="text-slate-500">Off</span>
+    </div>
+
+    <!-- Schedule Grid -->
     <div class="overflow-x-auto bg-slate-800/40 rounded-2xl border border-slate-700/60 p-4 shadow-2xl">
-      <table class="w-full min-w-[760px] border-collapse">
+      <table class="w-full min-w-[750px] border-collapse">
         <thead>
-          <tr class="border-b border-slate-700/80">
+          <tr class="border-b border-slate-700">
             <th class="p-3 text-left text-sm text-slate-400 font-bold w-28">Time</th>
-            <th id="th-Mon" class="p-3 text-center text-base font-bold text-slate-200">Mon</th>
-            <th id="th-Tue" class="p-3 text-center text-base font-bold text-slate-200">Tue</th>
-            <th id="th-Wed" class="p-3 text-center text-base font-bold text-slate-200">Wed</th>
-            <th id="th-Thu" class="p-3 text-center text-base font-bold text-slate-200">Thu</th>
-            <th id="th-Fri" class="p-3 text-center text-base font-bold text-slate-200">Fri</th>
-            <th id="th-Sat" class="p-3 text-center text-base font-bold text-slate-200">Sat</th>
-            <th id="th-Sun" class="p-3 text-center text-base font-bold text-slate-200">Sun</th>
+            <th class="p-3 text-center text-base font-bold text-slate-200">Mon</th>
+            <th class="p-3 text-center text-base font-bold text-slate-200">Tue</th>
+            <th class="p-3 text-center text-base font-bold text-slate-200">Wed</th>
+            <th class="p-3 text-center text-base font-bold text-slate-200">Thu</th>
+            <th class="p-3 text-center text-base font-bold text-slate-200">Fri</th>
+            <th class="p-3 text-center text-base font-bold text-slate-200">Sat</th>
+            <th class="p-3 text-center text-base font-bold text-slate-200">Sun</th>
           </tr>
         </thead>
         <tbody id="schedule-body">
-          <!-- Populated by JavaScript -->
+          <!-- Populated by JS -->
         </tbody>
       </table>
     </div>
@@ -168,7 +120,6 @@
   </div>
 
   <script>
-    // Supabase Credentials
     const SUPABASE_URL = "https://ifbutbzhnazccsrdvsjh.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmYnV0YnpobmF6Y2NzcmR2c2poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4NTkwMDksImV4cCI6MjEwNjQzNTAwOX0.B2zBIo1YbjXeTczg_l8QUwoWJLF_KO2G22fsE0r_RAU";
 
@@ -178,76 +129,49 @@
     }
 
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    // Full 24-hour day support for comprehensive work/sleep/gaming schedules
-    const hours = Array.from({ length: 24 }, (_, i) => i);
-
+    const hours = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
+    
+    // State
     let currentUser = localStorage.getItem('schedule_user') || 'Lyuji';
-    let currentWeekId = getISOWeekId(new Date());
-    let paintMode = 'free'; // 'free', 'busy', or 'none'
+    let currentWeek = getISOWeek(new Date());
     let scheduleData = {};
 
-    // Helper: ISO Week Identifier (e.g., "2026-W40")
-    function getISOWeekId(d) {
+    // Helper: ISO Week string format (e.g. "2026-W40")
+    function getISOWeek(d) {
       const date = new Date(d.getTime());
       date.setHours(0, 0, 0, 0);
-      date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+      date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
       const week1 = new Date(date.getFullYear(), 0, 4);
-      const weekNum = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+      const weekNum = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
       return `${date.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
     }
 
-    // Helper: Get Dates for selected week
-    function getWeekDates(weekString) {
-      const [year, week] = weekString.split('-W').map(Number);
-      const simple = new Date(year, 0, 1 + (week - 1) * 7);
-      const dow = simple.getDay();
-      const ISOweekStart = simple;
-      if (dow <= 4)
-        ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
-      else
-        ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
-      
-      const result = {};
-      days.forEach((day, index) => {
-        const d = new Date(ISOweekStart);
-        d.setDate(d.getDate() + index);
-        result[day] = `${d.getMonth() + 1}/${d.getDate()}`;
-      });
-      return result;
+    function initWeekPicker() {
+      const picker = document.getElementById('week-picker');
+      if (picker) picker.value = currentWeek;
     }
 
-    function initBlankSchedule() {
+    function changeWeek(weekVal) {
+      if (!weekVal) return;
+      currentWeek = weekVal;
+      resetLocalScheduleData();
+      loadSchedule();
+    }
+
+    function resetLocalScheduleData() {
       scheduleData = {};
       days.forEach(day => {
         hours.forEach(hour => {
-          scheduleData[`${day}_${hour}`] = { 
-            francis: 'none', // 'free', 'busy', 'none'
-            lyuji: 'none' 
-          };
+          const slotKey = `${currentWeek}_${day}_${hour}`;
+          scheduleData[slotKey] = { francis: 'none', lyuji: 'none' };
         });
       });
     }
 
     function formatHour(h) {
-      if (h === 0) return '12:00 AM';
-      if (h < 12) return `${h}:00 AM`;
       if (h === 12) return '12:00 PM';
-      return `${h - 12}:00 PM`;
-    }
-
-    function setPaintMode(mode) {
-      paintMode = mode;
-      ['free', 'busy', 'none'].forEach(m => {
-        const btn = document.getElementById(`mode-${m}`);
-        if (!btn) return;
-        if (m === mode) {
-          btn.className = m === 'free' ? "px-3 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-500 text-slate-950 shadow"
-                        : m === 'busy' ? "px-3 py-1.5 rounded-lg text-xs font-bold transition bg-blue-500 text-white shadow"
-                        : "px-3 py-1.5 rounded-lg text-xs font-bold transition bg-rose-500 text-white shadow";
-        } else {
-          btn.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition bg-slate-800 text-slate-400 hover:text-white";
-        }
-      });
+      if (h > 12) return `${h - 12}:00 PM`;
+      return `${h}:00 AM`;
     }
 
     function setUser(user) {
@@ -260,37 +184,19 @@
       const btnF = document.getElementById('btn-francis');
       const btnL = document.getElementById('btn-lyuji');
       if (currentUser === 'Francis') {
-        btnF.className = "px-4 py-2 rounded-lg font-bold bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/30 text-sm";
-        btnL.className = "px-4 py-2 rounded-lg font-bold bg-slate-800 text-slate-400 hover:text-white text-sm";
+        btnF.className = "px-3 py-1.5 rounded-lg font-semibold bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/30 text-sm";
+        btnL.className = "px-3 py-1.5 rounded-lg font-semibold bg-slate-800 text-slate-400 hover:text-white text-sm";
       } else {
-        btnL.className = "px-4 py-2 rounded-lg font-bold bg-purple-500 text-slate-950 shadow-lg shadow-purple-500/30 text-sm";
-        btnF.className = "px-4 py-2 rounded-lg font-bold bg-slate-800 text-slate-400 hover:text-white text-sm";
+        btnL.className = "px-3 py-1.5 rounded-lg font-semibold bg-purple-500 text-slate-950 shadow-lg shadow-purple-500/30 text-sm";
+        btnF.className = "px-3 py-1.5 rounded-lg font-semibold bg-slate-800 text-slate-400 hover:text-white text-sm";
       }
     }
 
-    function onWeekPickerChange(weekVal) {
-      if (!weekVal) return;
-      currentWeekId = weekVal;
-      updateHeaderDates();
-      loadSchedule();
-    }
-
-    function changeWeek(offset) {
-      const [year, week] = currentWeekId.split('-W').map(Number);
-      const date = new Date(year, 0, 1 + (week - 1) * 7);
-      date.setDate(date.getDate() + offset * 7);
-      currentWeekId = getISOWeekId(date);
-      document.getElementById('week-picker').value = currentWeekId;
-      updateHeaderDates();
-      loadSchedule();
-    }
-
-    function updateHeaderDates() {
-      const dates = getWeekDates(currentWeekId);
-      days.forEach(day => {
-        const th = document.getElementById(`th-${day}`);
-        if (th) th.innerHTML = `${day} <span class="block text-xs font-medium text-slate-400">${dates[day]}</span>`;
-      });
+    // Convert stored DB values safely (handles booleans or state strings)
+    function normalizeState(val) {
+      if (val === true || val === 'free') return 'free';
+      if (val === 'busy') return 'busy';
+      return 'none';
     }
 
     function renderGrid() {
@@ -305,36 +211,36 @@
         let rowHtml = `<td class="p-3 text-sm font-semibold font-mono text-slate-300">${formatHour(hour)}</td>`;
 
         days.forEach(day => {
-          const slotKey = `${day}_${hour}`;
+          const slotKey = `${currentWeek}_${day}_${hour}`;
           const slot = scheduleData[slotKey] || { francis: 'none', lyuji: 'none' };
           
-          let cellClass = "p-3 text-center cursor-pointer transition rounded-xl border m-0.5 text-sm font-bold select-none min-h-[44px] flex items-center justify-center ";
+          const fState = normalizeState(slot.francis);
+          const lState = normalizeState(slot.lyuji);
+
+          let cellClass = "p-3 text-center cursor-pointer transition rounded-lg m-1 text-sm font-semibold select-none ";
           let label = "-";
 
-          const fState = slot.francis;
-          const lState = slot.lyuji;
-
-          // Compute Combined Visual States
           if (fState === 'free' && lState === 'free') {
-            cellClass += "cell-match";
+            cellClass += "slot-match";
             label = "⚔ MATCH!";
-          } else if (fState === 'free') {
-            cellClass += "cell-francis-free";
-            label = "Francis 🎮";
-          } else if (lState === 'free') {
-            cellClass += "cell-lyuji-free";
-            label = "Lyuji 🎮";
-          } else if (fState === 'busy' && lState === 'busy') {
-            cellClass += "cell-both-busy";
-            label = "Both 💤/💼";
-          } else if (fState === 'busy') {
-            cellClass += "cell-francis-busy";
-            label = "Francis 💤/💼";
-          } else if (lState === 'busy') {
-            cellClass += "cell-lyuji-busy";
-            label = "Lyuji 💤/💼";
+          } else if (fState === 'free' || lState === 'free') {
+            if (fState === 'free') {
+              cellClass += "slot-francis-free";
+              label = "Francis";
+            } else {
+              cellClass += "slot-lyuji-free";
+              label = "Lyuji";
+            }
+          } else if (fState === 'busy' || lState === 'busy') {
+            if (fState === 'busy') {
+              cellClass += "slot-francis-busy";
+              label = "Francis (Busy)";
+            } else {
+              cellClass += "slot-lyuji-busy";
+              label = "Lyuji (Busy)";
+            }
           } else {
-            cellClass += "border-transparent text-slate-600 hover:bg-slate-800/80 hover:border-slate-700";
+            cellClass += "slot-none hover:bg-slate-800";
           }
 
           rowHtml += `
@@ -351,17 +257,12 @@
     }
 
     async function loadSchedule() {
-      initBlankSchedule();
-      renderGrid();
-
       if (!supabaseClient) return;
-
       try {
-        // Fetch schedule records for current selected week ID
         const { data, error } = await supabaseClient
           .from('schedule')
           .select('*')
-          .eq('week_id', currentWeekId);
+          .like('id', `${currentWeek}_%`);
 
         if (error) {
           console.error('Fetch error:', error);
@@ -370,11 +271,10 @@
 
         if (data) {
           data.forEach(row => {
-            // Support backward compatibility (booleans) or new state strings ('free', 'busy', 'none')
-            let fVal = row.francis_state || (row.francis === true ? 'free' : 'none');
-            let lVal = row.lyuji_state || (row.lyuji === true ? 'free' : 'none');
-
-            scheduleData[row.slot_id || row.id] = { francis: fVal, lyuji: lVal };
+            scheduleData[row.id] = {
+              francis: row.francis,
+              lyuji: row.lyuji
+            };
           });
           renderGrid();
         }
@@ -386,37 +286,40 @@
     async function toggleSlot(slotKey) {
       const current = scheduleData[slotKey] || { francis: 'none', lyuji: 'none' };
       const userKey = currentUser.toLowerCase();
+      
+      const stateCycle = ['none', 'free', 'busy'];
+      const currentState = normalizeState(current[userKey]);
+      const nextIdx = (stateCycle.indexOf(currentState) + 1) % stateCycle.length;
+      const nextState = stateCycle[nextIdx];
 
-      // Cycle or apply chosen paintMode
-      let newState = paintMode;
-      if (current[userKey] === paintMode) {
-        newState = 'none'; // Toggle off if clicking same active mode
-      }
-
-      scheduleData[slotKey] = { ...current, [userKey]: newState };
+      // Optimistic update
+      scheduleData[slotKey] = {
+        ...current,
+        [userKey]: nextState
+      };
       renderGrid();
 
       if (supabaseClient) {
-        const rowId = `${currentWeekId}_${slotKey}`;
-        const payload = { 
-          id: rowId,
-          week_id: currentWeekId,
-          slot_id: slotKey,
-          francis_state: scheduleData[slotKey].francis,
-          lyuji_state: scheduleData[slotKey].lyuji,
-          // Legacy boolean fallbacks
-          francis: scheduleData[slotKey].francis === 'free',
-          lyuji: scheduleData[slotKey].lyuji === 'free'
+        const payload = {
+          id: slotKey,
+          francis: scheduleData[slotKey].francis,
+          lyuji: scheduleData[slotKey].lyuji
         };
-        
+
         const { error } = await supabaseClient.from('schedule').upsert(payload, { onConflict: 'id' });
-        if (error) console.error("Error saving slot to Supabase:", error);
+        if (error) {
+          console.error("Error saving slot to Supabase:", error);
+          // Fallback if table expects boolean values:
+          if (error.code === '22P02' || error.message.includes('boolean')) {
+            console.warn("Table expects boolean columns! Alter column types in Supabase SQL editor to text.");
+          }
+        }
       }
     }
 
     async function clearMySchedule() {
       const userKey = currentUser.toLowerCase();
-      if (!confirm(`Clear all slots for ${currentUser} in week ${currentWeekId}?`)) return;
+      if (!confirm(`Clear your schedule for ${currentUser} in week ${currentWeek}?`)) return;
 
       const updates = [];
       Object.keys(scheduleData).forEach(slotKey => {
@@ -424,13 +327,9 @@
           scheduleData[slotKey][userKey] = 'none';
           if (supabaseClient) {
             updates.push({
-              id: `${currentWeekId}_${slotKey}`,
-              week_id: currentWeekId,
-              slot_id: slotKey,
-              francis_state: scheduleData[slotKey].francis,
-              lyuji_state: scheduleData[slotKey].lyuji,
-              francis: scheduleData[slotKey].francis === 'free',
-              lyuji: scheduleData[slotKey].lyuji === 'free'
+              id: slotKey,
+              francis: scheduleData[slotKey].francis,
+              lyuji: scheduleData[slotKey].lyuji
             });
           }
         }
@@ -444,31 +343,31 @@
       }
     }
 
-    // Subscribe to realtime changes for current week
+    // Subscribe to realtime updates
     if (supabaseClient) {
       try {
         supabaseClient
           .channel('schedule_changes')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule' }, payload => {
-            if (payload.new && payload.new.week_id === currentWeekId) {
-              const slotKey = payload.new.slot_id || payload.new.id.replace(`${currentWeekId}_`, '');
-              const fVal = payload.new.francis_state || (payload.new.francis === true ? 'free' : 'none');
-              const lVal = payload.new.lyuji_state || (payload.new.lyuji === true ? 'free' : 'none');
-
-              scheduleData[slotKey] = { francis: fVal, lyuji: lVal };
+            if (payload.new && payload.new.id.startsWith(currentWeek)) {
+              scheduleData[payload.new.id] = {
+                francis: payload.new.francis,
+                lyuji: payload.new.lyuji
+              };
               renderGrid();
             }
           })
           .subscribe();
       } catch(e) {
-        console.error("Realtime subscription failed:", e);
+        console.error("Realtime connection error:", e);
       }
     }
 
-    document.getElementById('week-picker').value = currentWeekId;
-    updateHeaderDates();
+    // Initial setup
+    initWeekPicker();
+    resetLocalScheduleData();
     updateUserUI();
-    setPaintMode('free');
+    renderGrid();
     loadSchedule();
   </script>
 </body>
