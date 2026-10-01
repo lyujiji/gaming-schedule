@@ -26,11 +26,20 @@
         <p class="text-slate-400 text-sm mt-1">Real-time weekly availability sync via Supabase</p>
       </div>
       
-      <!-- User Switcher -->
-      <div class="flex items-center gap-3 bg-slate-900/90 p-2 rounded-xl border border-slate-700">
-        <span class="text-xs uppercase font-bold tracking-wider text-slate-400 px-2">LOG IN AS:</span>
-        <button id="btn-francis" onclick="setUser('Francis')" class="px-4 py-2 rounded-lg font-semibold transition text-sm">Francis</button>
-        <button id="btn-lyuji" onclick="setUser('Lyuji')" class="px-4 py-2 rounded-lg font-semibold transition text-sm">Lyuji</button>
+      <!-- Controls -->
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- Clear My Schedule Button -->
+        <button onclick="clearMySchedule()" class="px-3 py-2 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 font-semibold text-xs transition flex items-center gap-1.5 shadow-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+          Clear My Schedule
+        </button>
+
+        <!-- User Switcher -->
+        <div class="flex items-center gap-2 bg-slate-900/90 p-1.5 rounded-xl border border-slate-700">
+          <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 px-2">LOG IN AS:</span>
+          <button id="btn-francis" onclick="setUser('Francis')" class="px-3 py-1.5 rounded-lg font-semibold transition text-xs">Francis</button>
+          <button id="btn-lyuji" onclick="setUser('Lyuji')" class="px-3 py-1.5 rounded-lg font-semibold transition text-xs">Lyuji</button>
+        </div>
       </div>
     </header>
 
@@ -112,11 +121,11 @@
       const btnF = document.getElementById('btn-francis');
       const btnL = document.getElementById('btn-lyuji');
       if (currentUser === 'Francis') {
-        btnF.className = "px-4 py-2 rounded-lg font-semibold bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/30 text-sm";
-        btnL.className = "px-4 py-2 rounded-lg font-semibold bg-slate-800 text-slate-400 hover:text-white text-sm";
+        btnF.className = "px-3 py-1.5 rounded-lg font-semibold bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/30 text-xs";
+        btnL.className = "px-3 py-1.5 rounded-lg font-semibold bg-slate-800 text-slate-400 hover:text-white text-xs";
       } else {
-        btnL.className = "px-4 py-2 rounded-lg font-semibold bg-purple-500 text-slate-950 shadow-lg shadow-purple-500/30 text-sm";
-        btnF.className = "px-4 py-2 rounded-lg font-semibold bg-slate-800 text-slate-400 hover:text-white text-sm";
+        btnL.className = "px-3 py-1.5 rounded-lg font-semibold bg-purple-500 text-slate-950 shadow-lg shadow-purple-500/30 text-xs";
+        btnF.className = "px-3 py-1.5 rounded-lg font-semibold bg-slate-800 text-slate-400 hover:text-white text-xs";
       }
     }
 
@@ -140,7 +149,7 @@
 
           if (slot.francis && slot.lyuji) {
             cellClass += "cell-match";
-            label = "⚔️️ MATCH!";
+            label = "⚔ MATCH!";
           } else if (slot.francis) {
             cellClass += "cell-francis";
             label = "Francis";
@@ -196,6 +205,32 @@
         };
         const { error } = await supabaseClient.from('schedule').upsert(payload);
         if (error) console.error("Error saving slot:", error);
+      }
+    }
+
+    async function clearMySchedule() {
+      const userKey = currentUser.toLowerCase();
+      if (!confirm(`Are you sure you want to clear all slots for ${currentUser}?`)) return;
+
+      const updates = [];
+      Object.keys(scheduleData).forEach(slotKey => {
+        if (scheduleData[slotKey][userKey]) {
+          scheduleData[slotKey][userKey] = false;
+          if (supabaseClient) {
+            updates.push({
+              id: slotKey,
+              francis: scheduleData[slotKey].francis || false,
+              lyuji: scheduleData[slotKey].lyuji || false
+            });
+          }
+        }
+      });
+
+      renderGrid();
+
+      if (supabaseClient && updates.length > 0) {
+        const { error } = await supabaseClient.from('schedule').upsert(updates);
+        if (error) console.error("Error clearing schedule:", error);
       }
     }
 
