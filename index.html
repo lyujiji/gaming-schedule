@@ -41,7 +41,7 @@
             ►
           </button>
 
-          <button onclick="goToCurrentWeek()" title="Reset to Current Week" class="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-1 rounded text-xs font-medium transition-all ml-1">
+          <button onclick="goToCurrentWeek()" title="Reset to Current Week" class="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-1 rounded-xs text-xs font-medium transition-all ml-1">
             This Week
           </button>
 
@@ -54,7 +54,7 @@
         <!-- Undo / Redo Buttons -->
         <div id="undo-redo-container" class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
           <button id="btn-undo" onclick="undo()" title="Undo (Ctrl+Z)" disabled class="px-2.5 py-1 rounded text-xs font-medium transition-all text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 hover:text-slate-200">
-            ↩️ Undo
+            ↩ Undo
           </button>
           <button id="btn-redo" onclick="redo()" title="Redo (Ctrl+Y)" disabled class="px-2.5 py-1 rounded text-xs font-medium transition-all text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 hover:text-slate-200">
             ↪️ Redo
@@ -89,15 +89,15 @@
     <div class="bg-slate-900/80 border border-slate-800 rounded-xl overflow-x-auto shadow-2xl">
       <table class="w-full text-left border-collapse min-w-[700px]">
         <thead>
-          <tr class="border-b border-slate-800 text-slate-400 text-xs">
+          <tr id="grid-header-row" class="border-b border-slate-800 text-slate-400 text-xs">
             <th class="p-3 w-24 text-center font-semibold">Time</th>
-            <th class="p-3 text-center font-semibold">Mon</th>
-            <th class="p-3 text-center font-semibold">Tue</th>
-            <th class="p-3 text-center font-semibold">Wed</th>
-            <th class="p-3 text-center font-semibold">Thu</th>
-            <th class="p-3 text-center font-semibold">Fri</th>
-            <th class="p-3 text-center font-semibold">Sat</th>
-            <th class="p-3 text-center font-semibold">Sun</th>
+            <th id="header-day-Mon" class="p-3 text-center font-semibold">Mon</th>
+            <th id="header-day-Tue" class="p-3 text-center font-semibold">Tue</th>
+            <th id="header-day-Wed" class="p-3 text-center font-semibold">Wed</th>
+            <th id="header-day-Thu" class="p-3 text-center font-semibold">Thu</th>
+            <th id="header-day-Fri" class="p-3 text-center font-semibold">Fri</th>
+            <th id="header-day-Sat" class="p-3 text-center font-semibold">Sat</th>
+            <th id="header-day-Sun" class="p-3 text-center font-semibold">Sun</th>
           </tr>
         </thead>
         <tbody id="grid-body" class="divide-y divide-slate-800/50 text-xs">
@@ -204,6 +204,21 @@
       const endText = sunday.toLocaleDateString('en-US', { ...options, year: 'numeric' });
 
       document.getElementById('week-range-label').innerText = `📅 ${startText} – ${endText}`;
+
+      // Dynamically update column header labels with specific dates
+      days.forEach((day, index) => {
+        const dateObj = new Date(monday);
+        dateObj.setDate(monday.getDate() + index);
+        const dateFormatted = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+        const headerElem = document.getElementById(`header-day-${day}`);
+        if (headerElem) {
+          headerElem.innerHTML = `
+            <div>${day}</div>
+            <span class="text-[10px] text-indigo-300/80 font-normal block leading-none mt-0.5">${dateFormatted}</span>
+          `;
+        }
+      });
     }
 
     function changeWeekOffset(offset) {
@@ -480,7 +495,7 @@
     // Mouse Dragging & State Cycle
     // ------------------------------------------------------------------
     function handleMouseDown(e, slotKey) {
-      if (e.button !== 0 || currentUser === 'Summary') return; // View-only mode for Summary
+      if (e.button !== 0 || currentUser === 'Summary') return;
       isMouseDown = true;
       currentDragChanges = {};
 
@@ -488,7 +503,6 @@
       const userKey = currentUser.toLowerCase();
       const current = weekData[slotKey] || { francis: 'free', lyuji: 'free' };
       
-      // Cycle: Available (free) -> BUSY (busy) -> FLEX (negotiable)
       const stateCycle = ['free', 'busy', 'negotiable'];
       const currentState = normalizeState(current[userKey]);
       const nextIdx = (stateCycle.indexOf(currentState) + 1) % stateCycle.length;
@@ -705,15 +719,21 @@
         .subscribe();
     }
 
+    // ------------------------------------------------------------------
+    // INSTANT AUTOMATIC RESET LOGIC
+    // ------------------------------------------------------------------
     async function clearWeek() {
       if (!confirm(`Reset all slots to default for page week ${currentWeek}?`)) return;
 
+      // 1. Instantly clear local memory and stacks
       scheduleByWeek[currentWeek] = {};
       undoStacksByWeek[currentWeek] = [];
       redoStacksByWeek[currentWeek] = [];
 
+      // 2. Instantly update UI without needing a browser refresh
       renderGrid();
 
+      // 3. Clear from Supabase backend in background
       if (supabaseClient) {
         const { error } = await supabaseClient
           .from('schedule')
@@ -726,3 +746,8 @@
   </script>
 </body>
 </html>
+```
+
+### Summary of Updates:
+- Each column header (Mon – Sun) now dynamically computes and displays the specific date for the selected week (e.g., `Mon` with `Oct 5` underneath).
+- Changing weeks via navigation buttons or the date picker seamlessly re-calculates and re-renders both header dates and schedule states.
