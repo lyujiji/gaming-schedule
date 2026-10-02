@@ -52,7 +52,7 @@
 
       <div class="flex items-center gap-3 flex-wrap">
         <!-- Undo / Redo Buttons -->
-        <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+        <div id="undo-redo-container" class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
           <button id="btn-undo" onclick="undo()" title="Undo (Ctrl+Z)" disabled class="px-2.5 py-1 rounded text-xs font-medium transition-all text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 hover:text-slate-200">
             ↩️ Undo
           </button>
@@ -63,9 +63,10 @@
 
         <!-- User Selector -->
         <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
-          <span class="text-slate-400 px-2 font-semibold uppercase">As:</span>
+          <span class="text-slate-400 px-2 font-semibold uppercase">View:</span>
           <button id="btn-francis" onclick="setUser('Francis')" class="px-3 py-1 rounded-md transition-all font-medium text-slate-400">Francis</button>
           <button id="btn-lyuji" onclick="setUser('Lyuji')" class="px-3 py-1 rounded-md transition-all font-medium text-slate-400">Lyuji</button>
+          <button id="btn-summary" onclick="setUser('Summary')" class="px-3 py-1 rounded-md transition-all font-medium text-slate-400">📊 Summary</button>
         </div>
 
         <button onclick="clearWeek()" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all">
@@ -75,41 +76,13 @@
     </header>
 
     <!-- Legend -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-      <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
-        <div class="w-4 h-4 rounded bg-emerald-500/30 border border-emerald-400 flex-shrink-0"></div>
-        <div>
-          <div class="font-semibold text-emerald-300">⚔️ MATCH! (Default)</div>
-          <div class="text-[10px] text-slate-400">Both Available to Play</div>
-        </div>
-      </div>
-      <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
-        <div class="w-4 h-4 rounded bg-amber-500/30 border border-amber-400 flex-shrink-0"></div>
-        <div>
-          <div class="font-semibold text-amber-300">🌙 Negotiable / Sleep</div>
-          <div class="text-[10px] text-slate-400">Can flex/extend if needed</div>
-        </div>
-      </div>
-      <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
-        <div class="w-4 h-4 rounded bg-red-500/30 border border-red-400/50 flex-shrink-0"></div>
-        <div>
-          <div class="font-semibold text-red-300">🚫 Busy</div>
-          <div class="text-[10px] text-slate-400">Strictly Unavailable</div>
-        </div>
-      </div>
-      <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
-        <div class="w-4 h-4 rounded bg-cyan-500/30 border border-cyan-400 flex-shrink-0"></div>
-        <div>
-          <div class="font-semibold text-cyan-300">Francis / Lyuji Solo</div>
-          <div class="text-[10px] text-slate-400">One person unavailable</div>
-        </div>
-      </div>
+    <div id="legend-container" class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+      <!-- Dynamically filled depending on user mode -->
     </div>
 
-    <!-- Instruction Tip -->
-    <div class="text-xs text-slate-400 text-center bg-slate-900/40 py-2 rounded-lg border border-slate-800">
-      💡 <span class="font-semibold text-slate-300">Week-Specific Page:</span> 
-      <span>Navigate dates above to plan upcoming weeks. Each week is completely independent. Use <kbd class="bg-slate-800 border border-slate-700 px-1 py-0.5 rounded text-[10px] text-slate-300">Ctrl + Z</kbd> to Undo.</span>
+    <!-- Dynamic Context Tip -->
+    <div id="mode-tip" class="text-xs text-slate-400 text-center bg-slate-900/40 py-2 rounded-lg border border-slate-800">
+      <!-- Filled via JS -->
     </div>
 
     <!-- Schedule Grid Table -->
@@ -150,13 +123,13 @@
     // ------------------------------------------------------------------
     // App & Drag State
     // ------------------------------------------------------------------
-    let currentUser = 'Lyuji';
+    let currentUser = 'Lyuji'; // 'Francis' | 'Lyuji' | 'Summary'
     let currentWeek = '';
     
     // Per-week storage maps
-    const scheduleByWeek = {}; // { '2026-W40': { slotKey: { francis, lyuji } } }
-    const undoStacksByWeek = {}; // { '2026-W40': [] }
-    const redoStacksByWeek = {}; // { '2026-W40': [] }
+    const scheduleByWeek = {}; 
+    const undoStacksByWeek = {}; 
+    const redoStacksByWeek = {}; 
 
     let isMouseDown = false;
     let targetDragState = 'busy'; 
@@ -167,7 +140,6 @@
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('keydown', handleKeyDown);
 
-    // Get current week's schedule data reference
     function getCurrentWeekData() {
       if (!scheduleByWeek[currentWeek]) {
         scheduleByWeek[currentWeek] = {};
@@ -254,7 +226,6 @@
       loadScheduleForCurrentWeek();
     }
 
-    // STRICT CYCLE: free (MATCH) -> busy -> negotiable (flex) -> free (MATCH)
     function normalizeState(val) {
       if (val === undefined || val === null || val === 'free' || val === true || val === 'none') return 'free';
       if (val === 'busy') return 'busy';
@@ -282,18 +253,120 @@
       currentUser = user;
       const btnFrancis = document.getElementById('btn-francis');
       const btnLyuji = document.getElementById('btn-lyuji');
+      const btnSummary = document.getElementById('btn-summary');
+      const undoRedoContainer = document.getElementById('undo-redo-container');
+      const legendContainer = document.getElementById('legend-container');
+      const modeTip = document.getElementById('mode-tip');
+
+      // Reset Button Styles
+      const inactiveBtn = "px-3 py-1 rounded-md transition-all font-medium text-slate-400 hover:text-slate-200";
+      btnFrancis.className = inactiveBtn;
+      btnLyuji.className = inactiveBtn;
+      btnSummary.className = inactiveBtn;
 
       if (user === 'Francis') {
         btnFrancis.className = "px-3 py-1 rounded-md transition-all font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40";
-        btnLyuji.className = "px-3 py-1 rounded-md transition-all font-medium text-slate-400 hover:text-slate-200";
-      } else {
+        undoRedoContainer.classList.remove('hidden');
+        
+        legendContainer.innerHTML = `
+          <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
+            <div class="w-4 h-4 rounded bg-emerald-500/30 border border-emerald-400 flex-shrink-0"></div>
+            <div>
+              <div class="font-semibold text-emerald-300">⚔️ Available</div>
+              <div class="text-[10px] text-slate-400">Default free state</div>
+            </div>
+          </div>
+          <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
+            <div class="w-4 h-4 rounded bg-amber-500/30 border border-amber-400 flex-shrink-0"></div>
+            <div>
+              <div class="font-semibold text-amber-300">🌙 Flex / Negotiable</div>
+              <div class="text-[10px] text-slate-400">Flexible availability</div>
+            </div>
+          </div>
+          <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
+            <div class="w-4 h-4 rounded bg-red-500/30 border border-red-400 flex-shrink-0"></div>
+            <div>
+              <div class="font-semibold text-red-300">🚫 Busy</div>
+              <div class="text-[10px] text-slate-400">Strictly unavailable</div>
+            </div>
+          </div>
+        `;
+
+        modeTip.innerHTML = `🔒 <span class="font-semibold text-cyan-300">Francis Input Mode:</span> <span>Click or drag to cycle your status. Lyuji's schedule is hidden to keep inputs blind.</span>`;
+
+      } else if (user === 'Lyuji') {
         btnLyuji.className = "px-3 py-1 rounded-md transition-all font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/40";
-        btnFrancis.className = "px-3 py-1 rounded-md transition-all font-medium text-slate-400 hover:text-slate-200";
+        undoRedoContainer.classList.remove('hidden');
+
+        legendContainer.innerHTML = `
+          <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
+            <div class="w-4 h-4 rounded bg-emerald-500/30 border border-emerald-400 flex-shrink-0"></div>
+            <div>
+              <div class="font-semibold text-emerald-300">⚔️ Available</div>
+              <div class="text-[10px] text-slate-400">Default free state</div>
+            </div>
+          </div>
+          <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
+            <div class="w-4 h-4 rounded bg-amber-500/30 border border-amber-400 flex-shrink-0"></div>
+            <div>
+              <div class="font-semibold text-amber-300">🌙 Flex / Negotiable</div>
+              <div class="text-[10px] text-slate-400">Flexible availability</div>
+            </div>
+          </div>
+          <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
+            <div class="w-4 h-4 rounded bg-red-500/30 border border-red-400 flex-shrink-0"></div>
+            <div>
+              <div class="font-semibold text-red-300">🚫 Busy</div>
+              <div class="text-[10px] text-slate-400">Strictly unavailable</div>
+            </div>
+          </div>
+        `;
+
+        modeTip.innerHTML = `🔒 <span class="font-semibold text-purple-300">Lyuji Input Mode:</span> <span>Click or drag to cycle your status. Francis's schedule is hidden to keep inputs blind.</span>`;
+
+      } else { // Summary Mode
+        btnSummary.className = "px-3 py-1 rounded-md transition-all font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40";
+        undoRedoContainer.classList.add('hidden');
+
+        legendContainer.innerHTML = `
+          <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
+            <div class="w-4 h-4 rounded bg-emerald-500/30 border border-emerald-400 flex-shrink-0"></div>
+            <div>
+              <div class="font-semibold text-emerald-300">⚔️ MATCH!</div>
+              <div class="text-[10px] text-slate-400">Both Available</div>
+            </div>
+          </div>
+          <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
+            <div class="w-4 h-4 rounded bg-amber-500/30 border border-amber-400 flex-shrink-0"></div>
+            <div>
+              <div class="font-semibold text-amber-300">🌙 Flex</div>
+              <div class="text-[10px] text-slate-400">Flex status for one or both</div>
+            </div>
+          </div>
+          <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
+            <div class="w-4 h-4 rounded bg-red-500/30 border border-red-400/50 flex-shrink-0"></div>
+            <div>
+              <div class="font-semibold text-red-300">🚫 Busy</div>
+              <div class="text-[10px] text-slate-400">Both Strictly Unavailable</div>
+            </div>
+          </div>
+          <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
+            <div class="w-4 h-4 rounded bg-cyan-500/30 border border-cyan-400 flex-shrink-0"></div>
+            <div>
+              <div class="font-semibold text-cyan-300">Francis / Lyuji Only</div>
+              <div class="text-[10px] text-slate-400">One person busy (overrides flex)</div>
+            </div>
+          </div>
+        `;
+
+        modeTip.innerHTML = `📊 <span class="font-semibold text-indigo-300">Summary View (Read-Only):</span> <span>Combined schedule overlaying inputs from both Francis and Lyuji.</span>`;
       }
+
+      renderGrid();
     }
 
     // ------------------------------------------------------------------
-    // UI Rendering
+    // UI Rendering & State Precedence Logic
     // ------------------------------------------------------------------
     function buildEmptyGrid() {
       const tbody = document.getElementById('grid-body');
@@ -342,31 +415,61 @@
           const francisState = normalizeState(slotData.francis);
           const lyujiState = normalizeState(slotData.lyuji);
 
-          // BOTH FREE -> MATCH
-          if (francisState === 'free' && lyujiState === 'free') {
-            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-bold bg-emerald-500/20 border-emerald-400/80 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.15)] select-none";
-            btn.innerText = "⚔️ MATCH";
+          // ---------------------------------------------------------------
+          // PRIVATE VIEW: INDIVIDUAL INPUT MODE (FRANCIS or LYUJI)
+          // ---------------------------------------------------------------
+          if (currentUser === 'Francis' || currentUser === 'Lyuji') {
+            const myState = currentUser === 'Francis' ? francisState : lyujiState;
+            btn.style.cursor = 'pointer';
+
+            if (myState === 'busy') {
+              btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-red-500/20 border-red-500/40 text-red-300 select-none";
+              btn.innerText = "🚫 Busy";
+            } else if (myState === 'negotiable') {
+              btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-amber-500/20 border-amber-400/60 text-amber-300 select-none";
+              btn.innerText = "🌙 Flex";
+            } else {
+              btn.className = "w-full h-8 rounded border transition-all text-[11px] font-semibold bg-emerald-500/20 border-emerald-400/60 text-emerald-300 select-none";
+              btn.innerText = "⚔️ Available";
+            }
+            return;
           }
-          // EITHER NEGOTIABLE / SLEEP
+
+          // ---------------------------------------------------------------
+          // SUMMARY VIEW: COMBINED RESULTS MODE (VIEW ONLY)
+          // ---------------------------------------------------------------
+          btn.style.cursor = 'default';
+
+          // 1. BOTH BUSY
+          if (francisState === 'busy' && lyujiState === 'busy') {
+            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-red-500/15 border-red-500/30 text-red-400/80 select-none";
+            btn.innerText = "🚫 Busy";
+          }
+          // 2. ONE IS BUSY (BUSY OVERRIDES FLEX & FREE)
+          else if (francisState === 'busy' || lyujiState === 'busy') {
+            if (francisState === 'busy') {
+              btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-purple-500/20 border-purple-400/60 text-purple-300 select-none";
+              btn.innerText = "Lyuji Only";
+            } else {
+              btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-cyan-500/20 border-cyan-400/60 text-cyan-300 select-none";
+              btn.innerText = "Francis Only";
+            }
+          }
+          // 3. BOTH ARE FLEX (NEGOTIABLE)
+          else if (francisState === 'negotiable' && lyujiState === 'negotiable') {
+            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-amber-500/25 border-amber-400/80 text-amber-300 select-none shadow-[0_0_8px_rgba(245,158,11,0.15)]";
+            btn.innerText = "🌙 Both (Flex)";
+          }
+          // 4. ONE IS FLEX, ONE IS FREE (MATCH)
           else if (francisState === 'negotiable' || lyujiState === 'negotiable') {
             const who = francisState === 'negotiable' ? 'Francis' : 'Lyuji';
             btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-amber-500/20 border-amber-400/60 text-amber-300 select-none";
             btn.innerText = `🌙 ${who} (Flex)`;
           }
-          // FRANCIS FREE, LYUJI BUSY
-          else if (francisState === 'free' && lyujiState === 'busy') {
-            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-cyan-500/20 border-cyan-400/60 text-cyan-300 select-none";
-            btn.innerText = "Francis Only";
-          }
-          // LYUJI FREE, FRANCIS BUSY
-          else if (lyujiState === 'free' && francisState === 'busy') {
-            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-purple-500/20 border-purple-400/60 text-purple-300 select-none";
-            btn.innerText = "Lyuji Only";
-          }
-          // BOTH BUSY
-          else if (francisState === 'busy' && lyujiState === 'busy') {
-            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-red-500/15 border-red-500/30 text-red-400/80 select-none";
-            btn.innerText = "🚫 Busy";
+          // 5. BOTH FREE -> DEFAULT MATCH
+          else {
+            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-bold bg-emerald-500/20 border-emerald-400/80 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.15)] select-none";
+            btn.innerText = "⚔️ MATCH";
           }
         });
       }
@@ -377,7 +480,7 @@
     // Mouse Dragging & State Cycle
     // ------------------------------------------------------------------
     function handleMouseDown(e, slotKey) {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || currentUser === 'Summary') return; // View-only mode for Summary
       isMouseDown = true;
       currentDragChanges = {};
 
@@ -385,7 +488,7 @@
       const userKey = currentUser.toLowerCase();
       const current = weekData[slotKey] || { francis: 'free', lyuji: 'free' };
       
-      // Cycle: MATCH (free) -> BUSY (busy) -> FLEX (negotiable)
+      // Cycle: Available (free) -> BUSY (busy) -> FLEX (negotiable)
       const stateCycle = ['free', 'busy', 'negotiable'];
       const currentState = normalizeState(current[userKey]);
       const nextIdx = (stateCycle.indexOf(currentState) + 1) % stateCycle.length;
@@ -396,7 +499,7 @@
     }
 
     function handleMouseEnter(slotKey) {
-      if (!isMouseDown) return;
+      if (!isMouseDown || currentUser === 'Summary') return;
       applyStateToSlot(slotKey, targetDragState);
     }
 
@@ -427,7 +530,7 @@
     }
 
     async function handleMouseUp() {
-      if (!isMouseDown) return;
+      if (!isMouseDown || currentUser === 'Summary') return;
       isMouseDown = false;
 
       const changedKeys = Object.keys(currentDragChanges);
@@ -436,7 +539,6 @@
       const undoStack = getWeekUndoStack();
       const redoStack = getWeekRedoStack();
 
-      // Push action to this week's undo stack and clear redo stack
       undoStack.push({ ...currentDragChanges });
       redoStack.length = 0; 
 
@@ -448,6 +550,8 @@
     // Per-Week Undo / Redo Logic
     // ------------------------------------------------------------------
     function handleKeyDown(e) {
+      if (currentUser === 'Summary') return;
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         if (e.shiftKey) {
           redo();
@@ -460,6 +564,8 @@
     }
 
     function undo() {
+      if (currentUser === 'Summary') return;
+
       const undoStack = getWeekUndoStack();
       const redoStack = getWeekRedoStack();
 
@@ -484,6 +590,8 @@
     }
 
     function redo() {
+      if (currentUser === 'Summary') return;
+
       const undoStack = getWeekUndoStack();
       const redoStack = getWeekRedoStack();
 
@@ -598,7 +706,7 @@
     }
 
     async function clearWeek() {
-      if (!confirm(`Reset all slots to default MATCH for page week ${currentWeek}?`)) return;
+      if (!confirm(`Reset all slots to default for page week ${currentWeek}?`)) return;
 
       scheduleByWeek[currentWeek] = {};
       undoStacksByWeek[currentWeek] = [];
