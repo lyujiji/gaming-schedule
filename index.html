@@ -26,7 +26,7 @@
           <span>🎮</span> Co-Op Schedule Matcher
         </h1>
         
-        <!-- Manual Week Navigation Bar -->
+        <!-- Dynamic Week Navigation Bar -->
         <div class="flex items-center gap-2 mt-2 flex-wrap">
           <button onclick="changeWeekOffset(-1)" title="Previous Week" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded text-xs transition-all border border-slate-700">
             ◄
@@ -41,8 +41,8 @@
             ►
           </button>
 
-          <button onclick="goToCurrentWeek()" title="Reset to Today" class="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-1 rounded text-xs font-medium transition-all ml-1">
-            Today
+          <button onclick="goToCurrentWeek()" title="Reset to Current Week" class="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-1 rounded text-xs font-medium transition-all ml-1">
+            This Week
           </button>
 
           <!-- Hidden Native Input Triggered by Clicking Label -->
@@ -69,7 +69,7 @@
         </div>
 
         <button onclick="clearWeek()" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all">
-          Reset Week
+          Reset Selected Week
         </button>
       </div>
     </header>
@@ -108,8 +108,8 @@
 
     <!-- Instruction Tip -->
     <div class="text-xs text-slate-400 text-center bg-slate-900/40 py-2 rounded-lg border border-slate-800">
-      💡 <span class="font-semibold text-slate-300">Default is MATCH!</span> 
-      <span>Click or drag slots to cycle between <b class="text-emerald-400">MATCH</b>, <b class="text-red-400">Busy</b>, and <b class="text-amber-400">Flex</b>. Use <kbd class="bg-slate-800 border border-slate-700 px-1 py-0.5 rounded text-[10px] text-slate-300">Ctrl + Z</kbd> to Undo.</span>
+      💡 <span class="font-semibold text-slate-300">Week-Specific Page:</span> 
+      <span>Navigate dates above to plan upcoming weeks. Each week is completely independent. Use <kbd class="bg-slate-800 border border-slate-700 px-1 py-0.5 rounded text-[10px] text-slate-300">Ctrl + Z</kbd> to Undo.</span>
     </div>
 
     <!-- Schedule Grid Table -->
@@ -152,20 +152,42 @@
     // ------------------------------------------------------------------
     let currentUser = 'Lyuji';
     let currentWeek = '';
-    let scheduleData = {}; 
+    
+    // Per-week storage maps
+    const scheduleByWeek = {}; // { '2026-W40': { slotKey: { francis, lyuji } } }
+    const undoStacksByWeek = {}; // { '2026-W40': [] }
+    const redoStacksByWeek = {}; // { '2026-W40': [] }
 
     let isMouseDown = false;
     let targetDragState = 'busy'; 
-    let currentDragChanges = {}; // Stores { slotKey: { previousState, newState } }
-
-    // Undo / Redo Stacks
-    const undoStack = [];
-    const redoStack = [];
+    let currentDragChanges = {};
 
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('keydown', handleKeyDown);
+
+    // Get current week's schedule data reference
+    function getCurrentWeekData() {
+      if (!scheduleByWeek[currentWeek]) {
+        scheduleByWeek[currentWeek] = {};
+      }
+      return scheduleByWeek[currentWeek];
+    }
+
+    function getWeekUndoStack() {
+      if (!undoStacksByWeek[currentWeek]) {
+        undoStacksByWeek[currentWeek] = [];
+      }
+      return undoStacksByWeek[currentWeek];
+    }
+
+    function getWeekRedoStack() {
+      if (!redoStacksByWeek[currentWeek]) {
+        redoStacksByWeek[currentWeek] = [];
+      }
+      return redoStacksByWeek[currentWeek];
+    }
 
     // ------------------------------------------------------------------
     // Date & Range Formatter
@@ -215,25 +237,24 @@
     function changeWeekOffset(offset) {
       const monday = getMondayOfWeek(currentWeek);
       monday.setDate(monday.getDate() + (offset * 7));
-      currentWeek = getWeekStringFromDate(monday);
-      
-      const weekPicker = document.getElementById('week-select');
-      weekPicker.value = currentWeek;
-
-      updateWeekRangeDisplay(currentWeek);
-      loadSchedule();
+      switchWeek(getWeekStringFromDate(monday));
     }
 
     function goToCurrentWeek() {
-      currentWeek = getWeekStringFromDate(new Date());
+      switchWeek(getWeekStringFromDate(new Date()));
+    }
+
+    function switchWeek(newWeekStr) {
+      currentWeek = newWeekStr;
       const weekPicker = document.getElementById('week-select');
       weekPicker.value = currentWeek;
 
       updateWeekRangeDisplay(currentWeek);
-      loadSchedule();
+      buildEmptyGrid();
+      loadScheduleForCurrentWeek();
     }
 
-    // STRICT CYCLE: free -> busy -> negotiable -> free
+    // STRICT CYCLE: free (MATCH) -> busy -> negotiable (flex) -> free (MATCH)
     function normalizeState(val) {
       if (val === undefined || val === null || val === 'free' || val === true || val === 'none') return 'free';
       if (val === 'busy') return 'busy';
@@ -245,18 +266,15 @@
     // Initialization
     // ------------------------------------------------------------------
     window.addEventListener('DOMContentLoaded', () => {
-      goToCurrentWeek();
-
       const weekPicker = document.getElementById('week-select');
       weekPicker.addEventListener('change', (e) => {
-        currentWeek = e.target.value;
-        updateWeekRangeDisplay(currentWeek);
-        loadSchedule();
+        if (e.target.value) {
+          switchWeek(e.target.value);
+        }
       });
 
       setUser(currentUser);
-      buildEmptyGrid();
-      loadSchedule();
+      goToCurrentWeek();
       subscribeToChanges();
     });
 
@@ -312,13 +330,15 @@
     }
 
     function renderGrid() {
+      const weekData = getCurrentWeekData();
+
       for (let hour = 0; hour < 24; hour++) {
         days.forEach(day => {
           const slotKey = `${currentWeek}_${day}_${hour}`;
           const btn = document.getElementById(`slot-${slotKey}`);
           if (!btn) return;
 
-          const slotData = scheduleData[slotKey] || { francis: 'free', lyuji: 'free' };
+          const slotData = weekData[slotKey] || { francis: 'free', lyuji: 'free' };
           const francisState = normalizeState(slotData.francis);
           const lyujiState = normalizeState(slotData.lyuji);
 
@@ -361,10 +381,11 @@
       isMouseDown = true;
       currentDragChanges = {};
 
+      const weekData = getCurrentWeekData();
       const userKey = currentUser.toLowerCase();
-      const current = scheduleData[slotKey] || { francis: 'free', lyuji: 'free' };
+      const current = weekData[slotKey] || { francis: 'free', lyuji: 'free' };
       
-      // Strict 3-state cycle: MATCH (free) -> BUSY (busy) -> FLEX (negotiable)
+      // Cycle: MATCH (free) -> BUSY (busy) -> FLEX (negotiable)
       const stateCycle = ['free', 'busy', 'negotiable'];
       const currentState = normalizeState(current[userKey]);
       const nextIdx = (stateCycle.indexOf(currentState) + 1) % stateCycle.length;
@@ -380,8 +401,9 @@
     }
 
     function applyStateToSlot(slotKey, nextState) {
+      const weekData = getCurrentWeekData();
       const userKey = currentUser.toLowerCase();
-      const current = scheduleData[slotKey] || { francis: 'free', lyuji: 'free' };
+      const current = weekData[slotKey] || { francis: 'free', lyuji: 'free' };
       const prevState = normalizeState(current[userKey]);
 
       if (prevState === nextState) return;
@@ -396,7 +418,7 @@
         currentDragChanges[slotKey].next = nextState;
       }
 
-      scheduleData[slotKey] = {
+      weekData[slotKey] = {
         ...current,
         [userKey]: nextState
       };
@@ -411,7 +433,10 @@
       const changedKeys = Object.keys(currentDragChanges);
       if (changedKeys.length === 0) return;
 
-      // Push action to Undo Stack and clear Redo Stack
+      const undoStack = getWeekUndoStack();
+      const redoStack = getWeekRedoStack();
+
+      // Push action to this week's undo stack and clear redo stack
       undoStack.push({ ...currentDragChanges });
       redoStack.length = 0; 
 
@@ -420,7 +445,7 @@
     }
 
     // ------------------------------------------------------------------
-    // Undo / Redo Logic
+    // Per-Week Undo / Redo Logic
     // ------------------------------------------------------------------
     function handleKeyDown(e) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
@@ -435,15 +460,19 @@
     }
 
     function undo() {
+      const undoStack = getWeekUndoStack();
+      const redoStack = getWeekRedoStack();
+
       if (undoStack.length === 0) return;
 
       const lastAction = undoStack.pop();
       redoStack.push(lastAction);
 
+      const weekData = getCurrentWeekData();
       const keysToSync = [];
       Object.entries(lastAction).forEach(([slotKey, change]) => {
-        const current = scheduleData[slotKey] || { francis: 'free', lyuji: 'free' };
-        scheduleData[slotKey] = {
+        const current = weekData[slotKey] || { francis: 'free', lyuji: 'free' };
+        weekData[slotKey] = {
           ...current,
           [change.user]: change.prev
         };
@@ -455,15 +484,19 @@
     }
 
     function redo() {
+      const undoStack = getWeekUndoStack();
+      const redoStack = getWeekRedoStack();
+
       if (redoStack.length === 0) return;
 
       const actionToRedo = redoStack.pop();
       undoStack.push(actionToRedo);
 
+      const weekData = getCurrentWeekData();
       const keysToSync = [];
       Object.entries(actionToRedo).forEach(([slotKey, change]) => {
-        const current = scheduleData[slotKey] || { francis: 'free', lyuji: 'free' };
-        scheduleData[slotKey] = {
+        const current = weekData[slotKey] || { francis: 'free', lyuji: 'free' };
+        weekData[slotKey] = {
           ...current,
           [change.user]: change.next
         };
@@ -478,6 +511,9 @@
       const btnUndo = document.getElementById('btn-undo');
       const btnRedo = document.getElementById('btn-redo');
 
+      const undoStack = getWeekUndoStack();
+      const redoStack = getWeekRedoStack();
+
       if (btnUndo) btnUndo.disabled = undoStack.length === 0;
       if (btnRedo) btnRedo.disabled = redoStack.length === 0;
     }
@@ -487,11 +523,12 @@
     // ------------------------------------------------------------------
     async function syncBatchToSupabase(keys) {
       if (!supabaseClient || keys.length === 0) return;
+      const weekData = getCurrentWeekData();
 
       const payloadBatch = keys.map(key => ({
         id: key,
-        francis: scheduleData[key].francis,
-        lyuji: scheduleData[key].lyuji
+        francis: weekData[key].francis,
+        lyuji: weekData[key].lyuji
       }));
 
       const { error } = await supabaseClient
@@ -503,8 +540,8 @@
       }
     }
 
-    async function loadSchedule() {
-      scheduleData = {};
+    async function loadScheduleForCurrentWeek() {
+      const weekData = getCurrentWeekData();
 
       if (!supabaseClient) {
         renderGrid();
@@ -521,7 +558,7 @@
 
         if (data) {
           data.forEach(row => {
-            scheduleData[row.id] = {
+            weekData[row.id] = {
               francis: normalizeState(row.francis),
               lyuji: normalizeState(row.lyuji)
             };
@@ -539,28 +576,33 @@
       supabaseClient
         .channel('public:schedule')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule' }, payload => {
-          if (payload.new && payload.new.id && payload.new.id.startsWith(currentWeek)) {
-            scheduleData[payload.new.id] = {
+          if (payload.new && payload.new.id) {
+            const slotKey = payload.new.id;
+            const weekPrefix = slotKey.split('_')[0];
+            
+            if (!scheduleByWeek[weekPrefix]) {
+              scheduleByWeek[weekPrefix] = {};
+            }
+
+            scheduleByWeek[weekPrefix][slotKey] = {
               francis: normalizeState(payload.new.francis),
               lyuji: normalizeState(payload.new.lyuji)
             };
-            renderGrid();
+
+            if (weekPrefix === currentWeek) {
+              renderGrid();
+            }
           }
         })
         .subscribe();
     }
 
     async function clearWeek() {
-      if (!confirm(`Reset all slots to default MATCH for ${currentWeek}?`)) return;
+      if (!confirm(`Reset all slots to default MATCH for page week ${currentWeek}?`)) return;
 
-      Object.keys(scheduleData).forEach(key => {
-        if (key.startsWith(currentWeek)) {
-          delete scheduleData[key];
-        }
-      });
-
-      undoStack.length = 0;
-      redoStack.length = 0;
+      scheduleByWeek[currentWeek] = {};
+      undoStacksByWeek[currentWeek] = [];
+      redoStacksByWeek[currentWeek] = [];
 
       renderGrid();
 
