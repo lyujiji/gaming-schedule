@@ -11,6 +11,7 @@
       background-color: #0b0f19;
       color: #f3f4f6;
       font-family: system-ui, -apple-system, sans-serif;
+      user-select: none; /* Prevents text highlight while dragging */
     }
   </style>
 </head>
@@ -24,12 +25,14 @@
         <h1 class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-indigo-400 bg-clip-text text-transparent flex items-center gap-2">
           <span>🎮</span> Co-Op Schedule Matcher
         </h1>
-        <p class="text-xs text-slate-400 mt-1">Real-time weekly availability & busy state sync via Supabase</p>
+        <div id="week-range-label" class="text-xs font-semibold text-indigo-300 mt-1">
+          Loading dates...
+        </div>
       </div>
 
       <div class="flex items-center gap-4 flex-wrap">
         <div class="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 text-xs">
-          <label for="week-select" class="text-slate-400 font-semibold uppercase">Week:</label>
+          <label for="week-select" class="text-slate-400 font-semibold uppercase">Week Of:</label>
           <input type="week" id="week-select" class="bg-transparent text-slate-200 outline-none cursor-pointer">
         </div>
 
@@ -40,7 +43,7 @@
         </div>
 
         <button onclick="clearWeek()" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all">
-          Clear Week
+          Reset Week
         </button>
       </div>
     </header>
@@ -48,42 +51,39 @@
     <!-- Legend -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
       <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
-        <div class="w-4 h-4 rounded bg-cyan-500/30 border border-cyan-400 flex-shrink-0"></div>
+        <div class="w-4 h-4 rounded bg-emerald-500/30 border border-emerald-400 flex-shrink-0"></div>
         <div>
-          <div class="font-semibold text-cyan-300">Francis Free</div>
-          <div class="text-[10px] text-slate-400">Available</div>
+          <div class="font-semibold text-emerald-300">⚔️ MATCH! (Default)</div>
+          <div class="text-[10px] text-slate-400">Both Available to Play</div>
         </div>
       </div>
       <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
-        <div class="w-4 h-4 rounded bg-purple-500/30 border border-purple-400 flex-shrink-0"></div>
+        <div class="w-4 h-4 rounded bg-amber-500/30 border border-amber-400 flex-shrink-0"></div>
         <div>
-          <div class="font-semibold text-purple-300">Lyuji Free</div>
-          <div class="text-[10px] text-slate-400">Available</div>
+          <div class="font-semibold text-amber-300">🌙 Negotiable / Sleep</div>
+          <div class="text-[10px] text-slate-400">Can flex/extend if needed</div>
         </div>
       </div>
       <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
         <div class="w-4 h-4 rounded bg-red-500/30 border border-red-400/50 flex-shrink-0"></div>
         <div>
-          <div class="font-semibold text-red-300">Busy / Sleep</div>
-          <div class="text-[10px] text-slate-400">Unavailable</div>
+          <div class="font-semibold text-red-300">🚫 Busy</div>
+          <div class="text-[10px] text-slate-400">Strictly Unavailable</div>
         </div>
       </div>
       <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-lg flex items-center gap-3">
-        <div class="w-4 h-4 rounded bg-emerald-500/40 border border-emerald-400 flex-shrink-0"></div>
+        <div class="w-4 h-4 rounded bg-cyan-500/30 border border-cyan-400 flex-shrink-0"></div>
         <div>
-          <div class="font-semibold text-emerald-300">⚔️ MATCH! Both Free</div>
-          <div class="text-[10px] text-slate-400">Co-Op Gaming Time</div>
+          <div class="font-semibold text-cyan-300">Francis / Lyuji Solo</div>
+          <div class="text-[10px] text-slate-400">One person unavailable</div>
         </div>
       </div>
     </div>
 
-    <!-- Instruction Tip (Unicode Arrows Fixed) -->
+    <!-- Instruction Tip -->
     <div class="text-xs text-slate-400 text-center bg-slate-900/40 py-2 rounded-lg border border-slate-800">
-      💡 <span class="font-semibold text-slate-300">Click a slot to cycle:</span> 
-      <span class="text-slate-500">Off</span> → 
-      <span class="text-emerald-400 font-semibold">Free</span> → 
-      <span class="text-red-400 font-semibold">Busy/Sleep</span> → 
-      <span class="text-slate-500">Off</span>
+      💡 <span class="font-semibold text-slate-300">Default is MATCH!</span> 
+      <span>Click or drag slots to change your state to <b class="text-red-400">Busy</b>, <b class="text-amber-400">Negotiable</b>, or <b class="text-slate-400">Off</b>.</span>
     </div>
 
     <!-- Schedule Grid Table -->
@@ -114,7 +114,7 @@
     // Supabase Configuration
     // ------------------------------------------------------------------
     const SUPABASE_URL = 'https://ifbutbzhnazccsrdvsjh.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmYnV0YnpobmF6Y2NzcmR2c2poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4NTkwMDksImV4cCI6MjEwNjQzNTAwOX0.B2zBIo1YbjXeTczg_l8QUwoWJLF_KO2G22fsE0r_RAU'; // Replace with your actual anon key if needed
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmYnV0YnpobmF6Y2NzcmR2c2poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4NTkwMDksImV4cCI6MjEwNjQzNTAwOX0.B2zBIo1YbjXeTczg_l8QUwoWJLF_KO2G22fsE0r_RAU';
     
     let supabaseClient = null;
     if (window.supabase) {
@@ -122,16 +122,22 @@
     }
 
     // ------------------------------------------------------------------
-    // App State
+    // App & Drag State
     // ------------------------------------------------------------------
     let currentUser = 'Lyuji';
     let currentWeek = '';
-    let scheduleData = {}; // Format: { "2026-W40_Mon_14": { francis: 'free', lyuji: 'busy' } }
+    let scheduleData = {}; 
+
+    let isMouseDown = false;
+    let targetDragState = 'busy'; 
+    let updatedSlotsInDrag = new Set(); 
 
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+    window.addEventListener('mouseup', handleMouseUp);
+
     // ------------------------------------------------------------------
-    // Helpers & Time Formatter (12-Hour AM/PM Fixed)
+    // Date & Range Formatter
     // ------------------------------------------------------------------
     function formatTimeSlot(hour) {
       const ampm = hour >= 12 ? 'PM' : 'AM';
@@ -150,10 +156,36 @@
       return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
     }
 
+    function updateWeekRangeDisplay(weekStr) {
+      if (!weekStr) return;
+      const [year, week] = weekStr.split('-W');
+      
+      // Calculate Monday of the selected week
+      const simpleDate = new Date(year, 0, 1 + (week - 1) * 7);
+      const dayOfWeek = simpleDate.getDay();
+      const monday = simpleDate;
+      if (dayOfWeek <= 4) {
+        monday.setDate(simpleDate.getDate() - simpleDate.getDay() + 1);
+      } else {
+        monday.setDate(simpleDate.getDate() + 8 - simpleDate.getDay());
+      }
+
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+
+      const options = { month: 'short', day: 'numeric' };
+      const startText = monday.toLocaleDateString('en-US', options);
+      const endText = sunday.toLocaleDateString('en-US', { ...options, year: 'numeric' });
+
+      document.getElementById('week-range-label').innerText = `📅 Range: ${startText} – ${endText}`;
+    }
+
     function normalizeState(val) {
-      if (val === true || val === 'free') return 'free';
-      if (val === 'busy' || val === 'sleep') return 'busy';
-      return 'none';
+      if (val === undefined || val === null || val === 'free' || val === true) return 'free';
+      if (val === 'busy') return 'busy';
+      if (val === 'negotiable' || val === 'sleep') return 'negotiable';
+      if (val === 'none') return 'none';
+      return 'free'; // Default fallback is free
     }
 
     // ------------------------------------------------------------------
@@ -164,8 +196,11 @@
       const weekPicker = document.getElementById('week-select');
       weekPicker.value = currentWeek;
       
+      updateWeekRangeDisplay(currentWeek);
+
       weekPicker.addEventListener('change', (e) => {
         currentWeek = e.target.value;
+        updateWeekRangeDisplay(currentWeek);
         loadSchedule();
       });
 
@@ -199,9 +234,9 @@
       for (let hour = 0; hour < 24; hour++) {
         const tr = document.createElement('tr');
 
-        // Time Column Header
+        // Time Column
         const tdTime = document.createElement('td');
-        tdTime.className = "p-2.5 text-center font-mono text-slate-400 text-[11px] bg-slate-900/50 border-r border-slate-800/80";
+        tdTime.className = "p-2.5 text-center font-mono text-slate-400 text-[11px] bg-slate-900/50 border-r border-slate-800/80 select-none";
         tdTime.innerText = formatTimeSlot(hour);
         tr.appendChild(tdTime);
 
@@ -213,16 +248,17 @@
           
           const btn = document.createElement('button');
           btn.id = `slot-${slotKey}`;
-          btn.onclick = () => toggleSlot(slotKey);
-          btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium flex items-center justify-center bg-slate-950/40 border-slate-800/60 text-slate-600 hover:border-slate-700";
-          btn.innerText = "-";
-
+          
+          btn.onmousedown = (e) => handleMouseDown(e, slotKey);
+          btn.onmouseenter = () => handleMouseEnter(slotKey);
+          
           tdSlot.appendChild(btn);
           tr.appendChild(tdSlot);
         });
 
         tbody.appendChild(tr);
       }
+      renderGrid();
     }
 
     function renderGrid() {
@@ -232,43 +268,40 @@
           const btn = document.getElementById(`slot-${slotKey}`);
           if (!btn) return;
 
-          const slotData = scheduleData[slotKey] || { francis: 'none', lyuji: 'none' };
+          // Default is both free if slot is unconfigured
+          const slotData = scheduleData[slotKey] || { francis: 'free', lyuji: 'free' };
           const francisState = normalizeState(slotData.francis);
           const lyujiState = normalizeState(slotData.lyuji);
 
           // BOTH FREE -> MATCH
           if (francisState === 'free' && lyujiState === 'free') {
-            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-bold bg-emerald-500/20 border-emerald-400/80 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.15)]";
+            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-bold bg-emerald-500/20 border-emerald-400/80 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.15)] select-none";
             btn.innerText = "⚔️ MATCH";
           }
-          // FRANCIS FREE ONLY
-          else if (francisState === 'free' && lyujiState !== 'free') {
-            if (lyujiState === 'busy') {
-              btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-gradient-to-r from-cyan-500/20 to-red-500/20 border-slate-700 text-slate-300";
-              btn.innerText = "Francis";
-            } else {
-              btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-cyan-500/20 border-cyan-400/60 text-cyan-300";
-              btn.innerText = "Francis";
-            }
+          // EITHER NEGOTIABLE / SLEEP
+          else if (francisState === 'negotiable' || lyujiState === 'negotiable') {
+            const who = francisState === 'negotiable' ? 'Francis' : 'Lyuji';
+            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-amber-500/20 border-amber-400/60 text-amber-300 select-none";
+            btn.innerText = `🌙 ${who} (Flex)`;
           }
-          // LYUJI FREE ONLY
-          else if (lyujiState === 'free' && francisState !== 'free') {
-            if (francisState === 'busy') {
-              btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-gradient-to-r from-red-500/20 to-purple-500/20 border-slate-700 text-slate-300";
-              btn.innerText = "Lyuji";
-            } else {
-              btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-purple-500/20 border-purple-400/60 text-purple-300";
-              btn.innerText = "Lyuji";
-            }
+          // FRANCIS FREE, LYUJI BUSY
+          else if (francisState === 'free' && lyujiState === 'busy') {
+            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-cyan-500/20 border-cyan-400/60 text-cyan-300 select-none";
+            btn.innerText = "Francis Only";
           }
-          // EITHER OR BOTH BUSY
-          else if (francisState === 'busy' || lyujiState === 'busy') {
-            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-red-500/15 border-red-500/30 text-red-400/80";
-            btn.innerText = "Busy";
+          // LYUJI FREE, FRANCIS BUSY
+          else if (lyujiState === 'free' && francisState === 'busy') {
+            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-purple-500/20 border-purple-400/60 text-purple-300 select-none";
+            btn.innerText = "Lyuji Only";
           }
-          // NONE / OFF
+          // BOTH BUSY
+          else if (francisState === 'busy' && lyujiState === 'busy') {
+            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-red-500/15 border-red-500/30 text-red-400/80 select-none";
+            btn.innerText = "🚫 Busy";
+          }
+          // OFF / NONE
           else {
-            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-slate-950/40 border-slate-800/60 text-slate-600 hover:border-slate-700";
+            btn.className = "w-full h-8 rounded border transition-all text-[11px] font-medium bg-slate-950/40 border-slate-800/60 text-slate-600 hover:border-slate-700 select-none";
             btn.innerText = "-";
           }
         });
@@ -276,46 +309,77 @@
     }
 
     // ------------------------------------------------------------------
-    // Actions & Supabase Operations
+    // Mouse Dragging & State Cycle
     // ------------------------------------------------------------------
-    async function toggleSlot(slotKey) {
-      const current = scheduleData[slotKey] || { francis: 'none', lyuji: 'none' };
+    function handleMouseDown(e, slotKey) {
+      if (e.button !== 0) return;
+      isMouseDown = true;
+      updatedSlotsInDrag.clear();
+
       const userKey = currentUser.toLowerCase();
+      const current = scheduleData[slotKey] || { francis: 'free', lyuji: 'free' };
       
-      const stateCycle = ['none', 'free', 'busy'];
+      // Cycle: Free (Match) -> Busy -> Negotiable (Sleep) -> None/Off -> Free
+      const stateCycle = ['free', 'busy', 'negotiable', 'none'];
       const currentState = normalizeState(current[userKey]);
       const nextIdx = (stateCycle.indexOf(currentState) + 1) % stateCycle.length;
-      const nextState = stateCycle[nextIdx];
+      
+      targetDragState = stateCycle[nextIdx];
+
+      applyStateToSlot(slotKey, targetDragState);
+    }
+
+    function handleMouseEnter(slotKey) {
+      if (!isMouseDown) return;
+      applyStateToSlot(slotKey, targetDragState);
+    }
+
+    function applyStateToSlot(slotKey, nextState) {
+      const userKey = currentUser.toLowerCase();
+      const current = scheduleData[slotKey] || { francis: 'free', lyuji: 'free' };
 
       scheduleData[slotKey] = {
         ...current,
         [userKey]: nextState
       };
 
+      updatedSlotsInDrag.add(slotKey);
       renderGrid();
+    }
 
-      if (supabaseClient) {
-        const payload = {
-          id: slotKey,
-          francis: scheduleData[slotKey].francis,
-          lyuji: scheduleData[slotKey].lyuji
-        };
+    async function handleMouseUp() {
+      if (!isMouseDown) return;
+      isMouseDown = false;
+
+      if (supabaseClient && updatedSlotsInDrag.size > 0) {
+        const payloadBatch = Array.from(updatedSlotsInDrag).map(key => ({
+          id: key,
+          francis: scheduleData[key].francis,
+          lyuji: scheduleData[key].lyuji
+        }));
 
         const { error } = await supabaseClient
           .from('schedule')
-          .upsert(payload, { onConflict: 'id' });
+          .upsert(payloadBatch, { onConflict: 'id' });
 
         if (error) {
-          console.error("Error saving slot to Supabase:", error);
+          console.error("Error batch saving to Supabase:", error);
         }
       }
+      
+      updatedSlotsInDrag.clear();
     }
 
+    // ------------------------------------------------------------------
+    // Supabase Load & Sync
+    // ------------------------------------------------------------------
     async function loadSchedule() {
-      buildEmptyGrid();
       scheduleData = {};
 
-      if (!supabaseClient) return;
+      if (!supabaseClient) {
+        renderGrid();
+        return;
+      }
 
       try {
         const { data, error } = await supabaseClient
@@ -332,8 +396,8 @@
               lyuji: normalizeState(row.lyuji)
             };
           });
-          renderGrid();
         }
+        renderGrid();
       } catch (e) {
         console.error("Supabase load error:", e);
       }
@@ -357,7 +421,7 @@
     }
 
     async function clearWeek() {
-      if (!confirm(`Are you sure you want to clear all slots for ${currentWeek}?`)) return;
+      if (!confirm(`Reset all slots to default MATCH for ${currentWeek}?`)) return;
 
       Object.keys(scheduleData).forEach(key => {
         if (key.startsWith(currentWeek)) {
